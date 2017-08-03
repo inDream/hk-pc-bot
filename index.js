@@ -34,7 +34,9 @@ const handleJumbo = $ => {
   $('#ctl00_PageTopCP_gvProducts td:nth-child(1)').each((i, e) => {
     const name = $(e).text();
     const price = +$(e).next().text().replace('HK$ ', '');
-    tempDB[jumboMap[id] || 'other'].push({ name, price, vendor: 'Jumbo' });
+    if (!isNaN(price)) {
+      tempDB[jumboMap[id] || 'other'].push({ name, price, vendor: 'Jumbo' });
+    }
   });
 };
 
@@ -93,6 +95,19 @@ const getVendors = async () => {
   });
 };
 
+const calc = (price, n) => {
+  const [, operator, p] = price.match(/(\D+)(\d+)/);
+  switch (operator) {
+    case '>=': return n >= +p;
+    case '>': return n > +p;
+    case '<=': return n <= +p;
+    case '<': return n < +p;
+    case '!=': return n < +p;
+    case '=': return n === +p;
+    default: return true;
+  }
+};
+
 try {
   fs.statSync('./db.json');
   DB = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
@@ -107,13 +122,18 @@ setInterval(() => {
 
 const botDesc = `Jumbo/SE Computer/Terminal 查詢功能
 用途 ([]為可選):
-查詢硬件價格 - /price@HKPCbot <產品名稱> [類別]
-價格查詢類別: case, cpu, mb, mon, psu, ram, ssd, gpu, hdd, ehdd`;
+查詢硬件價格 - /price@HKPCbot <產品名稱> [類別] [價錢範圍]
+價格查詢類別: case, cpu, mb, mon, psu, ram, ssd, gpu, hdd, ehdd
+價錢範圍用法: $>=1000 $>1001 $<2000 $<=1999 $!=1500 $=1600`;
 
 const handleMsg = ({ message, reply }) => {
   const text = message.text.split(' ');
   console.log(message.text);
   if (text.length > 1) {
+    let price = text[text.length - 1].indexOf('$') > -1;
+    if (price) {
+      price = text.pop().slice(1);
+    }
     const category = text[text.length - 1];
     const hasCategory = keys.indexOf(category) > -1;
     const q = (hasCategory ? text.slice(1, -1) : text.slice(1))
@@ -122,7 +142,7 @@ const handleMsg = ({ message, reply }) => {
     (hasCategory ? [category] : keys).forEach(key => {
       DB[key]
         .filter(e => q.map(w => e.name.toLowerCase().indexOf(w) > -1)
-          .indexOf(false) === -1)
+          .indexOf(false) === -1 && (price ? calc(price, e.price) : true))
         .forEach(e => res.push(e));
     });
     const len = res.length;
