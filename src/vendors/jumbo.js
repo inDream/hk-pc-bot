@@ -15,6 +15,8 @@ async function getJumbo() {
     $('#ctl00_PageTopCP_gvProducts td:nth-child(1)').each((i, e) => {
       const name = $(e).text();
       const price = +$(e).next().text().replace(/\D/g, '');
+      // ignore product without price
+      if (isNaN(price)) return;
       db[jumboMap[id] || 'other'].push({name, price, vendor: 'Jumbo'});
     });
   };

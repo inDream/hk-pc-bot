@@ -7,7 +7,7 @@ let {getTerminal} = require('./src/vendors/terminal');
 let {getSE} = require('./src/vendors/se');
 let {newDatabase, mergeDatabase, loadDatabase, saveDatabase} = require('./src/lib/database');
 let {print, join} = require('./src/lib/util');
-let {botDesc, handleMsg} = require('./src/bot');
+let {botDesc, handler} = require('./src/bot');
 
 async function getVendors() {
   let tables = await Promise.all([
@@ -44,10 +44,11 @@ async function main() {
     saveDatabase(path, DB);
   }, 1000 * 60 * 60 * 6);
 
+  let getDB = () => DB;
   let bot = new Telegraf(process.env.BOT_TOKEN);
   bot.command('start', ({reply}) => reply(botDesc));
-  bot.command('/price', handleMsg(DB));
-  bot.command('/price@HKPCbot', handleMsg(DB));
+  bot.command('/price', handler(getDB));
+  bot.command('/price@HKPCbot', handler(getDB));
   bot.startPolling();
 }
 
