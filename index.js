@@ -29,6 +29,15 @@ const seMap = {
 };
 const timeout = s => new Promise(resolve => setTimeout(resolve, s));
 
+const request = async url => {
+  try {
+    return await get(url);
+  } catch (e) {
+    await timeout(1000);
+    return request(url);
+  }
+};
+
 const handleJumbo = $ => {
   const id = $('#ctl00_PageTopCP_ddlProduct option[selected]').val();
   $('#ctl00_PageTopCP_gvProducts td:nth-child(1)').each((i, e) => {
@@ -65,7 +74,7 @@ const getVendors = async () => {
     case: [], cpu: [], gpu: [], ehdd: [], hdd: [], mb: [], mon: [], psu: [],
     ram: [], ssd: [], other: []
   };
-  let res = await get('http://www.terminalhk.com/api/public/product');
+  let res = await request('http://www.terminalhk.com/api/public/product');
   res.body.products.filter(e => e.category !== '隱藏')
     .forEach(({ category, name, price }) => {
       tempDB[categoryMap[category] || 'other']
@@ -73,22 +82,22 @@ const getVendors = async () => {
     });
 
   const jumboBase = 'http://www.jumbo-computer.com/pricelist.aspx';
-  res = await get(jumboBase);
+  res = await request(jumboBase);
   let $ = cheerio.load(res.body);
   handleJumbo($);
   $('#ctl00_PageTopCP_ddlProduct option').slice(1).each(async (i, e) => {
-    res = await get(`${jumboBase}?id=${$(e).val()}`);
+    res = await request(`${jumboBase}?id=${$(e).val()}`);
     handleJumbo(cheerio.load(res.body));
     await timeout(500);
     saveDB();
   });
 
   const seBase = 'http://www.secomputer.com.hk/';
-  res = await get(`${seBase}pricelist.php`);
+  res = await request(`${seBase}pricelist.php`);
   $ = cheerio.load(res.body);
   handleSE($);
   $('.left_priceListItemBg a').slice(1).each(async (i, e) => {
-    res = await get(`${seBase}${$(e).attr('href')}`);
+    res = await request(`${seBase}${$(e).attr('href')}`);
     handleSE(cheerio.load(res.body));
     await timeout(500);
     saveDB();
