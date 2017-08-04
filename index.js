@@ -3,6 +3,7 @@ const cheerio = require('cheerio');
 const fs = require('fs');
 const needle = require('needle');
 const Telegraf = require('telegraf');
+const { Extra, Markup } = Telegraf;
 const util = require('util');
 const get = util.promisify(needle.get);
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -136,12 +137,13 @@ setInterval(() => {
 const botDesc = `Jumbo/SE Computer/Terminal 查詢功能
 用途 ([]為可選):
 查詢硬件價格 - /price@HKPCbot <產品名稱> [類別] [價錢範圍]
+
 價格查詢類別: case, cpu, mb, mon, psu, ram, ssd, gpu, hdd, ehdd
 價錢範圍用法: $>=1000 $>1001 $<2000 $<=1999 $!=1500 $=1600`;
 
-const handleMsg = ({ message, reply }) => {
+const handleMsg = ({ message, reply, editMessageText, update }, pageInput) => {
   const text = message.text.split(' ');
-  console.log(message.text);
+  console.log(message.text, pageInput);
   if (text.length > 1) {
     let price = text[text.length - 1].indexOf('$') > -1;
     if (price) {
@@ -162,8 +164,13 @@ const handleMsg = ({ message, reply }) => {
     if (!len) {
       return reply(`搵唔到${text.slice(1).join(' ')}呢件野喎。`);
     }
-    let r = `搵到${len}件野${len > 5 ? ' (只比頭5件你睇)' : ''}：\n`;
-    res.sort((a, b) => a.price - b.price).slice(0, 5).forEach(e => {
+    const lastPage = Math.round(len / 5);
+    const page = Math.max(1, Math.min(pageInput, lastPage));
+    const start = (page - 1) * 5;
+    const end = page * 5;
+    let r = `搵到${len}件野${len > 5 ?
+      ` (${start + 1}-${end + 1}件 第${page}頁)` : ''}：\n`;
+    res.sort((a, b) => a.price - b.price).slice(start, end).forEach(e => {
       r += `HKD$${e.price} - ${e.vendor} - ${e.name}\n`;
     });
     const average = ~~(res.reduce((a, e) => a + e.price, 0) / len);
@@ -174,7 +181,30 @@ const handleMsg = ({ message, reply }) => {
       .reduce((a, e) => a + e, 0) / len);
     r += `最平: HKD$${res[0].price}, 最貴: HKD$${res[len - 1].price}\n` +
       `平均: HKD$${average}, 中位數: HKD$${median}, 標準差: HKD$${sd}`;
-    return reply(r);
+    if (!update.callback_query) {
+      return reply(r, Markup.inlineKeyboard([
+        Markup.callbackButton('▶️ 下1頁', `next ${page} ${message.text}`),
+        Markup.callbackButton('⏩ 下10頁', `next-ten ${page} ${message.text}`),
+        Markup.callbackButton('⏭ 最後', `end ${page} ${message.text}`)
+      ]).extra());
+    }
+    const markups = [];
+    if (page < lastPage) {
+      markups.push(
+        Markup.callbackButton('▶️ 下1頁', `next ${page} ${message.text}`),
+        Markup.callbackButton('⏩ 下10頁', `next-ten ${page} ${message.text}`),
+        Markup.callbackButton('⏭ 最後', `last ${lastPage} ${message.text}`)
+      );
+    }
+    if (page > 1) {
+      markups.push(
+        Markup.callbackButton('◀️ 前1頁', `prev ${page} ${message.text}`),
+        Markup.callbackButton('⏪ 前10頁', `prev-ten ${page} ${message.text}`),
+        Markup.callbackButton('⏮ 最前', `first ${page} ${message.text}`)
+      );
+    }
+    return editMessageText(r, Markup.inlineKeyboard(markups, { columns: 3 })
+      .extra());
   }
   return reply(botDesc);
 };
@@ -182,6 +212,31 @@ const handleMsg = ({ message, reply }) => {
 bot.command('start', ({ reply }) => {
   reply(botDesc);
 });
-bot.command('/price', handleMsg);
-bot.command('/price@HKPCbot', handleMsg);
+bot.command('/price', e => handleMsg(e, 1));
+bot.command('/price@HKPCbot', e => handleMsg(e, 1));
+bot.on('callback_query', ctx => {
+  const text = ctx.update.callback_query.data.split(' ');
+  const q = text.shift();
+  let page = +text.shift();
+  switch (q) {
+    case 'next':
+      page++;
+      break;
+    case 'next-ten':
+      page += 10;
+      break;
+    case 'prev':
+      page--;
+      break;
+    case 'prev-ten':
+      page -= 10;
+      break;
+    case 'first':
+      page = 1;
+      break;
+    default:
+  }
+  const newCtx = Object.assign({}, ctx, { message: { text: text.join(' ') } });
+  handleMsg(newCtx, page);
+});
 bot.startPolling();
