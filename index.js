@@ -86,21 +86,25 @@ const getVendors = async () => {
   let $ = cheerio.load(res.body);
   handleJumbo($);
   $('#ctl00_PageTopCP_ddlProduct option').slice(1).each(async (i, e) => {
-    res = await request(`${jumboBase}?id=${$(e).val()}`);
-    handleJumbo(cheerio.load(res.body));
-    await timeout(500);
-    saveDB();
+    if (!$(e).text().match('系列')) {
+      res = await request(`${jumboBase}?id=${$(e).val()}`);
+      handleJumbo(cheerio.load(res.body));
+      await timeout(500);
+      saveDB();
+    }
   });
 
   const seBase = 'http://www.secomputer.com.hk/';
   res = await request(`${seBase}pricelist.php`);
   $ = cheerio.load(res.body);
   handleSE($);
-  $('.left_priceListItemBg a').slice(1).each(async (i, e) => {
-    res = await request(`${seBase}${$(e).attr('href')}`);
-    handleSE(cheerio.load(res.body));
-    await timeout(500);
-    saveDB();
+  $('.ProductTypeID option').slice(1).each(async (i, e) => {
+    if (!$(e).text().match('廠機')) {
+      res = await request(`${seBase}${$(e).attr('href')}`);
+      handleSE(cheerio.load(res.body));
+      await timeout(500);
+      saveDB();
+    }
   });
 };
 
