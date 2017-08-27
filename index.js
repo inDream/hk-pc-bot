@@ -62,8 +62,7 @@ const handleSE = $ => {
 const saveDB = () => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    DB = tempDB;
-    tempDB = null;
+    DB = Object.assign({}, tempDB);
     fs.writeFile('db.json', JSON.stringify(DB), () => {
       console.log('Done get all vendors data.');
     });
@@ -116,7 +115,7 @@ const calc = (price, n) => {
     case '>': return n > +p;
     case '<=': return n <= +p;
     case '<': return n < +p;
-    case '!=': return n < +p;
+    case '!=': return n !== +p;
     case '=': return n === +p;
     default: return true;
   }
@@ -164,12 +163,12 @@ const handleMsg = ({ message, reply, editMessageText, update }, pageInput) => {
     if (!len) {
       return reply(`搵唔到${text.slice(1).join(' ')}呢件野喎。`);
     }
-    const lastPage = Math.round(len / 5);
+    const lastPage = Math.ceil(len / 5);
     const page = Math.max(1, Math.min(pageInput, lastPage));
     const start = (page - 1) * 5;
     const end = page * 5;
     let r = `搵到${len}件野${len > 5 ?
-      ` (${start + 1}-${end + 1}件 第${page}頁)` : ''}：\n`;
+      ` (${start + 1}-${end}件 第${page}頁)` : ''}：\n`;
     res.sort((a, b) => a.price - b.price).slice(start, end).forEach(e => {
       r += `HKD$${e.price} - ${e.vendor} - ${e.name}\n`;
     });
@@ -181,27 +180,23 @@ const handleMsg = ({ message, reply, editMessageText, update }, pageInput) => {
       .reduce((a, e) => a + e, 0) / len);
     r += `最平: HKD$${res[0].price}, 最貴: HKD$${res[len - 1].price}\n` +
       `平均: HKD$${average}, 中位數: HKD$${median}, 標準差: HKD$${sd}`;
-    if (!update.callback_query) {
-      return reply(r, Markup.inlineKeyboard([
-        Markup.callbackButton('▶️ 下1頁', `next ${page} ${message.text}`),
-        Markup.callbackButton('⏩ 下10頁', `next-ten ${page} ${message.text}`),
-        Markup.callbackButton('⏭ 最後', `end ${page} ${message.text}`)
-      ]).extra());
-    }
     const markups = [];
     if (page < lastPage) {
       markups.push(
-        Markup.callbackButton('▶️ 下1頁', `next ${page} ${message.text}`),
+        Markup.callbackButton('▶ 下1頁', `next ${page} ${message.text}`),
         Markup.callbackButton('⏩ 下10頁', `next-ten ${page} ${message.text}`),
         Markup.callbackButton('⏭ 最後', `last ${lastPage} ${message.text}`)
       );
     }
     if (page > 1) {
       markups.push(
-        Markup.callbackButton('◀️ 前1頁', `prev ${page} ${message.text}`),
+        Markup.callbackButton('◀ 前1頁', `prev ${page} ${message.text}`),
         Markup.callbackButton('⏪ 前10頁', `prev-ten ${page} ${message.text}`),
         Markup.callbackButton('⏮ 最前', `first ${page} ${message.text}`)
       );
+    }
+    if (!update.callback_query) {
+      return reply(r, Markup.inlineKeyboard(markups).extra());
     }
     return editMessageText(r, Markup.inlineKeyboard(markups, { columns: 3 })
       .extra());
